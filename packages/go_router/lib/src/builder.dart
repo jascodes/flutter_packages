@@ -188,6 +188,10 @@ class RouteBuilder {
       // The key for the Navigator that will display this ShellRoute's page.
       final GlobalKey<NavigatorState> parentNavigatorKey = navigatorKey;
 
+      // JasCodesPatch: The observers list for the ShellRoute's Navigator.
+      final List<NavigatorObserver> observers =
+          route.observers ?? <NavigatorObserver>[];
+
       // The key to provide to the ShellRoute's Navigator.
       final GlobalKey<NavigatorState> shellNavigatorKey = route.navigatorKey;
 
@@ -206,9 +210,14 @@ class RouteBuilder {
       _buildRecursive(context, matchList, startIndex + 1, onPopPage,
           routerNeglect, keyToPages, shellNavigatorKey, registry);
 
-      // Build the Navigator
+      //  Build the Navigator
       final Widget child = _buildNavigator(
-          onPopPage, keyToPages[shellNavigatorKey]!, shellNavigatorKey);
+        onPopPage,
+        keyToPages[shellNavigatorKey]!,
+        shellNavigatorKey,
+        // JasCodes Patch: Add the observers to the Navigator
+        observers: observers,
+      );
 
       // Build the Page for this route
       final Page<Object?> page =

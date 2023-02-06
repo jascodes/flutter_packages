@@ -421,6 +421,7 @@ class ShellRoute extends RouteBase {
     this.builder,
     this.pageBuilder,
     super.routes,
+    this.observers,
     GlobalKey<NavigatorState>? navigatorKey,
   })  : assert(routes.isNotEmpty),
         navigatorKey = navigatorKey ?? GlobalKey<NavigatorState>(),
@@ -446,6 +447,12 @@ class ShellRoute extends RouteBase {
   /// This child parameter is the Widget built by calling the matching
   /// sub-route's builder.
   final ShellRoutePageBuilder? pageBuilder;
+
+  /// JasCodes Patch: The observers for a shell route.
+  ///
+  /// The observers parameter is used by the [Navigator] built for this route.
+  /// sub-route's observers.
+  final List<NavigatorObserver>? observers;
 
   /// The [GlobalKey] to be used by the [Navigator] built for this route.
   /// All ShellRoutes build a Navigator by default. Child GoRoutes
