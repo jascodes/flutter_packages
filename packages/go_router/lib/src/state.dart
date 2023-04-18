@@ -4,7 +4,6 @@
 
 import 'package:flutter/widgets.dart';
 
-import '../go_router.dart';
 import 'configuration.dart';
 import 'misc/errors.dart';
 
@@ -64,7 +63,11 @@ class GoRouterState {
   /// The error associated with this sub-route.
   final Exception? error;
 
-  /// A unique string key for this sub-route, e.g. ValueKey('/family/:fid')
+  /// A unique string key for this sub-route.
+  /// E.g.
+  /// ```dart
+  /// ValueKey('/family/:fid')
+  /// ```
   final ValueKey<String> pageKey;
 
   /// Gets the [GoRouterState] from context.
@@ -122,8 +125,7 @@ class GoRouterState {
 
   /// Get a location from route name and parameters.
   /// This is useful for redirecting to a named location.
-  @Deprecated(
-      'Uses GoRouter.of(context).routeInformationParser.namedLocation instead')
+  @Deprecated('Use GoRouter.of(context).namedLocation instead')
   String namedLocation(
     String name, {
     Map<String, String> params = const <String, String>{},

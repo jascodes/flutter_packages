@@ -36,8 +36,18 @@
   return everything;
 }
 
-- (void)throwErrorWithError:(FlutterError *_Nullable *_Nonnull)error {
+- (nullable id)throwErrorWithError:(FlutterError *_Nullable *_Nonnull)error {
   *error = [FlutterError errorWithCode:@"An error" message:nil details:nil];
+  return nil;
+}
+
+- (void)throwErrorFromVoidWithError:(FlutterError *_Nullable *_Nonnull)error {
+  *error = [FlutterError errorWithCode:@"An error" message:nil details:nil];
+}
+
+- (nullable id)throwFlutterErrorWithError:(FlutterError *_Nullable *_Nonnull)error {
+  *error = [FlutterError errorWithCode:@"code" message:@"message" details:@"details"];
+  return nil;
 }
 
 - (nullable NSNumber *)echoInt:(NSNumber *)anInt error:(FlutterError *_Nullable *_Nonnull)error {
@@ -156,6 +166,11 @@
   completion([FlutterError errorWithCode:@"An error" message:nil details:nil]);
 }
 
+- (void)throwAsyncFlutterErrorWithCompletion:(void (^)(id _Nullable,
+                                                       FlutterError *_Nullable))completion {
+  completion(nil, [FlutterError errorWithCode:@"code" message:@"message" details:@"details"]);
+}
+
 - (void)echoAsyncAllTypes:(AllTypes *)everything
                completion:(void (^)(AllTypes *_Nullable, FlutterError *_Nullable))completion {
   completion(everything, nil);
@@ -253,7 +268,20 @@
 }
 
 - (void)callFlutterNoopWithCompletion:(void (^)(FlutterError *_Nullable))completion {
-  [self.flutterAPI noopWithCompletion:^(NSError *error) {
+  [self.flutterAPI noopWithCompletion:^(FlutterError *error) {
+    completion(error);
+  }];
+}
+
+- (void)callFlutterThrowErrorWithCompletion:(void (^)(id _Nullable,
+                                                      FlutterError *_Nullable))completion {
+  [self.flutterAPI throwErrorWithCompletion:^(id value, FlutterError *error) {
+    completion(value, error);
+  }];
+}
+
+- (void)callFlutterThrowErrorFromVoidWithCompletion:(void (^)(FlutterError *_Nullable))completion {
+  [self.flutterAPI throwErrorFromVoidWithCompletion:^(FlutterError *error) {
     completion(error);
   }];
 }
@@ -261,7 +289,7 @@
 - (void)callFlutterEchoAllTypes:(AllTypes *)everything
                      completion:(void (^)(AllTypes *_Nullable, FlutterError *_Nullable))completion {
   [self.flutterAPI echoAllTypes:everything
-                     completion:^(AllTypes *value, NSError *error) {
+                     completion:^(AllTypes *value, FlutterError *error) {
                        completion(value, error);
                      }];
 }
@@ -274,7 +302,7 @@
   [self.flutterAPI sendMultipleNullableTypesABool:aNullableBool
                                             anInt:aNullableInt
                                           aString:aNullableString
-                                       completion:^(AllNullableTypes *value, NSError *error) {
+                                       completion:^(AllNullableTypes *value, FlutterError *error) {
                                          completion(value, error);
                                        }];
 }
@@ -282,7 +310,7 @@
 - (void)callFlutterEchoBool:(NSNumber *)aBool
                  completion:(void (^)(NSNumber *_Nullable, FlutterError *_Nullable))completion {
   [self.flutterAPI echoBool:aBool
-                 completion:^(NSNumber *value, NSError *error) {
+                 completion:^(NSNumber *value, FlutterError *error) {
                    completion(value, error);
                  }];
 }
@@ -290,7 +318,7 @@
 - (void)callFlutterEchoInt:(NSNumber *)anInt
                 completion:(void (^)(NSNumber *_Nullable, FlutterError *_Nullable))completion {
   [self.flutterAPI echoInt:anInt
-                completion:^(NSNumber *value, NSError *error) {
+                completion:^(NSNumber *value, FlutterError *error) {
                   completion(value, error);
                 }];
 }
@@ -298,7 +326,7 @@
 - (void)callFlutterEchoDouble:(NSNumber *)aDouble
                    completion:(void (^)(NSNumber *_Nullable, FlutterError *_Nullable))completion {
   [self.flutterAPI echoDouble:aDouble
-                   completion:^(NSNumber *value, NSError *error) {
+                   completion:^(NSNumber *value, FlutterError *error) {
                      completion(value, error);
                    }];
 }
@@ -306,7 +334,7 @@
 - (void)callFlutterEchoString:(NSString *)aString
                    completion:(void (^)(NSString *_Nullable, FlutterError *_Nullable))completion {
   [self.flutterAPI echoString:aString
-                   completion:^(NSString *value, NSError *error) {
+                   completion:^(NSString *value, FlutterError *error) {
                      completion(value, error);
                    }];
 }
@@ -315,7 +343,7 @@
                       completion:(void (^)(FlutterStandardTypedData *_Nullable,
                                            FlutterError *_Nullable))completion {
   [self.flutterAPI echoUint8List:aList
-                      completion:^(FlutterStandardTypedData *value, NSError *error) {
+                      completion:^(FlutterStandardTypedData *value, FlutterError *error) {
                         completion(value, error);
                       }];
 }
@@ -323,7 +351,7 @@
 - (void)callFlutterEchoList:(NSArray<id> *)aList
                  completion:(void (^)(NSArray<id> *_Nullable, FlutterError *_Nullable))completion {
   [self.flutterAPI echoList:aList
-                 completion:^(NSArray<id> *value, NSError *error) {
+                 completion:^(NSArray<id> *value, FlutterError *error) {
                    completion(value, error);
                  }];
 }
@@ -332,7 +360,7 @@
                 completion:(void (^)(NSDictionary<NSString *, id> *_Nullable,
                                      FlutterError *_Nullable))completion {
   [self.flutterAPI echoMap:aMap
-                completion:^(NSDictionary<NSString *, id> *value, NSError *error) {
+                completion:^(NSDictionary<NSString *, id> *value, FlutterError *error) {
                   completion(value, error);
                 }];
 }
@@ -341,7 +369,7 @@
                          completion:
                              (void (^)(NSNumber *_Nullable, FlutterError *_Nullable))completion {
   [self.flutterAPI echoNullableBool:aBool
-                         completion:^(NSNumber *value, NSError *error) {
+                         completion:^(NSNumber *value, FlutterError *error) {
                            completion(value, error);
                          }];
 }
@@ -350,7 +378,7 @@
                         completion:
                             (void (^)(NSNumber *_Nullable, FlutterError *_Nullable))completion {
   [self.flutterAPI echoNullableInt:anInt
-                        completion:^(NSNumber *value, NSError *error) {
+                        completion:^(NSNumber *value, FlutterError *error) {
                           completion(value, error);
                         }];
 }
@@ -359,7 +387,7 @@
                            completion:
                                (void (^)(NSNumber *_Nullable, FlutterError *_Nullable))completion {
   [self.flutterAPI echoNullableDouble:aDouble
-                           completion:^(NSNumber *value, NSError *error) {
+                           completion:^(NSNumber *value, FlutterError *error) {
                              completion(value, error);
                            }];
 }
@@ -368,7 +396,7 @@
                            completion:
                                (void (^)(NSString *_Nullable, FlutterError *_Nullable))completion {
   [self.flutterAPI echoNullableString:aString
-                           completion:^(NSString *value, NSError *error) {
+                           completion:^(NSString *value, FlutterError *error) {
                              completion(value, error);
                            }];
 }
@@ -377,7 +405,7 @@
                               completion:(void (^)(FlutterStandardTypedData *_Nullable,
                                                    FlutterError *_Nullable))completion {
   [self.flutterAPI echoNullableUint8List:aList
-                              completion:^(FlutterStandardTypedData *value, NSError *error) {
+                              completion:^(FlutterStandardTypedData *value, FlutterError *error) {
                                 completion(value, error);
                               }];
 }
@@ -386,7 +414,7 @@
                          completion:
                              (void (^)(NSArray<id> *_Nullable, FlutterError *_Nullable))completion {
   [self.flutterAPI echoNullableList:aList
-                         completion:^(NSArray<id> *value, NSError *error) {
+                         completion:^(NSArray<id> *value, FlutterError *error) {
                            completion(value, error);
                          }];
 }
@@ -395,7 +423,7 @@
                         completion:(void (^)(NSDictionary<NSString *, id> *_Nullable,
                                              FlutterError *_Nullable))completion {
   [self.flutterAPI echoNullableMap:aMap
-                        completion:^(NSDictionary<NSString *, id> *value, NSError *error) {
+                        completion:^(NSDictionary<NSString *, id> *value, FlutterError *error) {
                           completion(value, error);
                         }];
 }

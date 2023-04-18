@@ -35,11 +35,11 @@ class TestInfo {
 
 // Test suite names.
 const String androidJavaUnitTests = 'android_java_unittests';
+const String androidJavaLint = 'android_java_lint';
 const String androidJavaIntegrationTests = 'android_java_integration_tests';
 const String androidKotlinUnitTests = 'android_kotlin_unittests';
 const String androidKotlinIntegrationTests = 'android_kotlin_integration_tests';
 const String iOSObjCUnitTests = 'ios_objc_unittests';
-const String iOSObjCUnitTestsLegacy = 'ios_objc_legacy_unittests';
 const String iOSObjCIntegrationTests = 'ios_objc_integration_tests';
 const String iOSSwiftUnitTests = 'ios_swift_unittests';
 const String iOSSwiftIntegrationTests = 'ios_swift_integration_tests';
@@ -65,6 +65,8 @@ const Map<String, TestInfo> testSuites = <String, TestInfo>{
   androidJavaIntegrationTests: TestInfo(
       function: _runAndroidJavaIntegrationTests,
       description: 'Integration tests on generated Java code.'),
+  androidJavaLint: TestInfo(
+      function: _runAndroidJavaLint, description: 'Lint generated Java code.'),
   androidKotlinUnitTests: TestInfo(
       function: _runAndroidKotlinUnitTests,
       description: 'Unit tests on generated Kotlin code.'),
@@ -80,10 +82,6 @@ const Map<String, TestInfo> testSuites = <String, TestInfo>{
   iOSObjCUnitTests: TestInfo(
       function: _runIOSObjCUnitTests,
       description: 'Unit tests on generated Objective-C code.'),
-  iOSObjCUnitTestsLegacy: TestInfo(
-      function: _runIOSObjCLegacyUnitTests,
-      description:
-          'Unit tests on generated Objective-C code (legacy test harness).'),
   iOSObjCIntegrationTests: TestInfo(
       function: _runIOSObjCIntegrationTests,
       description: 'Integration tests on generated Objective-C code.'),
@@ -114,6 +112,23 @@ Future<int> _runAndroidJavaUnitTests() async {
 Future<int> _runAndroidJavaIntegrationTests() async {
   return _runMobileIntegrationTests(
       'Android', _alternateLanguageTestPluginRelativePath);
+}
+
+Future<int> _runAndroidJavaLint() async {
+  const String examplePath =
+      './$_alternateLanguageTestPluginRelativePath/example';
+  const String androidProjectPath = '$examplePath/android';
+  final File gradleFile = File(p.join(androidProjectPath, 'gradlew'));
+  if (!gradleFile.existsSync()) {
+    final int compileCode = await runFlutterBuild(examplePath, 'apk',
+        flags: <String>['--config-only']);
+    if (compileCode != 0) {
+      return compileCode;
+    }
+  }
+
+  return runGradleBuild(
+      androidProjectPath, 'alternate_language_test_plugin:lintDebug');
 }
 
 Future<int> _runAndroidKotlinUnitTests() async {
@@ -221,18 +236,6 @@ Future<int> _runFlutterUnitTests() async {
     'non_null_fields',
     'null_fields',
     'nullable_returns',
-    // TODO(stuartmorgan): Eliminate these files by ensuring that everything
-    // they are intended to cover is in core_tests.dart (or, if necessary in
-    // the short term due to limitations in non-Dart generators, a single other
-    // file). They aren't being unit tested, only analyzed.
-    'async_handlers',
-    'host2flutter',
-    'list',
-    'message',
-    'void_arg_flutter',
-    'void_arg_host',
-    'voidflutter',
-    'voidhost',
   ];
   final int generateCode = await _generateDart(<String, String>{
     for (final String name in inputPigeons)
@@ -257,13 +260,6 @@ Future<int> _runFlutterUnitTests() async {
 
 Future<int> _runIOSObjCUnitTests() async {
   return _runIOSPluginUnitTests(_alternateLanguageTestPluginRelativePath);
-}
-
-// TODO(stuartmorgan): Remove this, and the ios_unit_tests directory, once
-// _runIOSObjCUnitTests works in CI; see
-// https://github.com/flutter/packages/pull/2816.
-Future<int> _runIOSObjCLegacyUnitTests() async {
-  return _runIOSProjectUnitTests('platform_tests/ios_unit_tests');
 }
 
 Future<int> _runIOSObjCIntegrationTests() async {
@@ -292,7 +288,11 @@ Future<int> _runMacOSSwiftUnitTests() async {
 
   return runXcodeBuild(
     '$examplePath/macos',
-    extraArguments: <String>['test'],
+    extraArguments: <String>[
+      '-configuration',
+      'Debug',
+      'test',
+    ],
   );
 }
 
@@ -311,12 +311,8 @@ Future<int> _runIOSSwiftUnitTests() async {
 
 Future<int> _runIOSPluginUnitTests(String testPluginPath) async {
   final String examplePath = './$testPluginPath/example';
-  return _runIOSProjectUnitTests(examplePath);
-}
-
-Future<int> _runIOSProjectUnitTests(String testProjectPath) async {
   final int compileCode = await runFlutterBuild(
-    testProjectPath,
+    examplePath,
     'ios',
     flags: <String>['--simulator', '--no-codesign'],
   );
@@ -325,9 +321,9 @@ Future<int> _runIOSProjectUnitTests(String testProjectPath) async {
   }
 
   return runXcodeBuild(
-    '$testProjectPath/ios',
+    '$examplePath/ios',
     sdk: 'iphonesimulator',
-    destination: 'platform=iOS Simulator,name=iPhone 8',
+    destination: 'platform=iOS Simulator,name=iPhone 13',
     extraArguments: <String>['test'],
   );
 }

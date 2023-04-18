@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import 'configuration.dart';
@@ -47,6 +48,8 @@ class RouteMatcher {
 }
 
 /// The list of [RouteMatch] objects.
+///
+/// This corresponds to the GoRouter's history.
 class RouteMatchList {
   /// RouteMatchList constructor.
   RouteMatchList(List<RouteMatch> matches, this._uri, this.pathParameters)
@@ -57,6 +60,33 @@ class RouteMatchList {
   static RouteMatchList empty =
       RouteMatchList(<RouteMatch>[], Uri.parse(''), const <String, String>{});
 
+  /// Generates the full path (ex: `'/family/:fid/person/:pid'`) of a list of
+  /// [RouteMatch].
+  ///
+  /// This methods considers that [matches]'s elements verify the go route
+  /// structure given to `GoRouter`. For example, if the routes structure is
+  ///
+  /// ```dart
+  /// GoRoute(
+  ///   path: '/a',
+  ///   routes: [
+  ///     GoRoute(
+  ///       path: 'b',
+  ///       routes: [
+  ///         GoRoute(
+  ///           path: 'c',
+  ///         ),
+  ///       ],
+  ///     ),
+  ///   ],
+  /// ),
+  /// ```
+  ///
+  /// The [matches] must be the in same order of how GoRoutes are matched.
+  ///
+  /// ```dart
+  /// [RouteMatchA(), RouteMatchB(), RouteMatchC()]
+  /// ```
   static String _generateFullPath(Iterable<RouteMatch> matches) {
     final StringBuffer buffer = StringBuffer();
     bool addsSlash = false;
@@ -76,7 +106,12 @@ class RouteMatchList {
   final List<RouteMatch> _matches;
 
   /// the full path pattern that matches the uri.
-  /// /family/:fid/person/:pid
+  ///
+  /// For example:
+  ///
+  /// ```dart
+  /// '/family/:fid/person/:pid'
+  /// ```
   final String fullpath;
 
   /// Parameters for the matched route, URI-encoded.
@@ -134,6 +169,11 @@ class RouteMatchList {
 
   /// Returns the error that this match intends to display.
   Exception? get error => matches.first.error;
+
+  @override
+  String toString() {
+    return '${objectRuntimeType(this, 'RouteMatchList')}($fullpath)';
+  }
 }
 
 /// An error that occurred during matching.
@@ -153,6 +193,18 @@ class MatcherError extends Error {
   }
 }
 
+/// Returns the list of `RouteMatch` corresponding to the given `loc`.
+///
+/// For example, for a given `loc` `/a/b/c/d`, this function will return the
+/// list of [RouteBase] `[GoRouteA(), GoRouterB(), GoRouteC(), GoRouterD()]`.
+///
+/// - [loc] is the complete URL to match (without the query parameters). For
+///   example, for the URL `/a/b?c=0`, [loc] will be `/a/b`.
+/// - [restLoc] is the remaining part of the URL to match while [parentSubloc]
+///   is the part of the URL that has already been matched. For examples, for
+///   the URL `/a/b/c/d`, at some point, [restLoc] would be `/c/d` and
+///   [parentSubloc] will be `/a/b`.
+/// - [routes] are the possible [RouteBase] to match to [restLoc].
 List<RouteMatch>? _getLocRouteRecursively({
   required String loc,
   required String restLoc,

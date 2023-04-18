@@ -58,6 +58,29 @@ final GoRouter _router = GoRouter(
             );
           },
         ),
+        GoRoute(
+          path: 'custom-reverse-transition-duration',
+          pageBuilder: (BuildContext context, GoRouterState state) {
+            return CustomTransitionPage<void>(
+              key: state.pageKey,
+              child: const DetailsScreen(),
+              barrierDismissible: true,
+              barrierColor: Colors.black38,
+              opaque: false,
+              transitionDuration: const Duration(milliseconds: 500),
+              reverseTransitionDuration: const Duration(milliseconds: 200),
+              transitionsBuilder: (BuildContext context,
+                  Animation<double> animation,
+                  Animation<double> secondaryAnimation,
+                  Widget child) {
+                return FadeTransition(
+                  opacity: animation,
+                  child: child,
+                );
+              },
+            );
+          },
+        ),
       ],
     ),
   ],
@@ -66,7 +89,7 @@ final GoRouter _router = GoRouter(
 /// The main app.
 class MyApp extends StatelessWidget {
   /// Constructs a [MyApp]
-  const MyApp({Key? key}) : super(key: key);
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -79,7 +102,7 @@ class MyApp extends StatelessWidget {
 /// The home screen
 class HomeScreen extends StatelessWidget {
   /// Constructs a [HomeScreen]
-  const HomeScreen({Key? key}) : super(key: key);
+  const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -98,6 +121,14 @@ class HomeScreen extends StatelessWidget {
               onPressed: () => context.go('/dismissible-details'),
               child: const Text('Go to the Dismissible Details screen'),
             ),
+            const SizedBox(height: 48),
+            ElevatedButton(
+              onPressed: () =>
+                  context.go('/custom-reverse-transition-duration'),
+              child: const Text(
+                'Go to the Custom Reverse Transition Duration Screen',
+              ),
+            ),
           ],
         ),
       ),
@@ -108,7 +139,7 @@ class HomeScreen extends StatelessWidget {
 /// The details screen
 class DetailsScreen extends StatelessWidget {
   /// Constructs a [DetailsScreen]
-  const DetailsScreen({Key? key}) : super(key: key);
+  const DetailsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -132,7 +163,7 @@ class DetailsScreen extends StatelessWidget {
 /// The dismissible details screen
 class DismissibleDetails extends StatelessWidget {
   /// Constructs a [DismissibleDetails]
-  const DismissibleDetails({Key? key}) : super(key: key);
+  const DismissibleDetails({super.key});
 
   @override
   Widget build(BuildContext context) {

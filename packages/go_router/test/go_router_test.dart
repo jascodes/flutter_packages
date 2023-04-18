@@ -18,17 +18,17 @@ import 'package:logging/logging.dart';
 
 import 'test_helpers.dart';
 
-const bool enableLogs = true;
+const bool enableLogs = false;
 final Logger log = Logger('GoRouter tests');
 
-Future<void> sendPlatformUrl(String url) async {
+Future<void> sendPlatformUrl(String url, WidgetTester tester) async {
   final Map<String, dynamic> testRouteInformation = <String, dynamic>{
     'location': url,
   };
   final ByteData message = const JSONMethodCodec().encodeMethodCall(
     MethodCall('pushRouteInformation', testRouteInformation),
   );
-  await ServicesBinding.instance.defaultBinaryMessenger
+  await tester.binding.defaultBinaryMessenger
       .handlePlatformMessage('flutter/navigation', message, (_) {});
 }
 
@@ -281,6 +281,57 @@ void main() {
       router.go('/1234?id=456');
       await tester.pumpAndSettle();
       expect(find.text('/1234?id=456'), findsOneWidget);
+    });
+
+    testWidgets('repeatedly pops imperative route does not crash',
+        (WidgetTester tester) async {
+      // Regression test for https://github.com/flutter/flutter/issues/123369.
+      final UniqueKey home = UniqueKey();
+      final UniqueKey settings = UniqueKey();
+      final UniqueKey dialog = UniqueKey();
+      final GlobalKey<NavigatorState> navKey = GlobalKey<NavigatorState>();
+      final List<GoRoute> routes = <GoRoute>[
+        GoRoute(
+          path: '/',
+          builder: (_, __) => DummyScreen(key: home),
+        ),
+        GoRoute(
+          path: '/settings',
+          builder: (_, __) => DummyScreen(key: settings),
+        ),
+      ];
+      final GoRouter router =
+          await createRouter(routes, tester, navigatorKey: navKey);
+      expect(find.byKey(home), findsOneWidget);
+
+      router.push('/settings');
+      await tester.pumpAndSettle();
+      expect(find.byKey(home), findsNothing);
+      expect(find.byKey(settings), findsOneWidget);
+
+      showDialog(
+        context: navKey.currentContext!,
+        builder: (_) => DummyScreen(key: dialog),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(dialog), findsOneWidget);
+
+      router.pop();
+      await tester.pumpAndSettle();
+      expect(find.byKey(dialog), findsNothing);
+      expect(find.byKey(settings), findsOneWidget);
+
+      showDialog(
+        context: navKey.currentContext!,
+        builder: (_) => DummyScreen(key: dialog),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(dialog), findsOneWidget);
+
+      router.pop();
+      await tester.pumpAndSettle();
+      expect(find.byKey(dialog), findsNothing);
+      expect(find.byKey(settings), findsOneWidget);
     });
 
     testWidgets('match sub-route', (WidgetTester tester) async {
@@ -689,7 +740,8 @@ void main() {
         'Handles the Android back button when parentNavigatorKey is set to the root navigator',
         (WidgetTester tester) async {
       final List<MethodCall> log = <MethodCall>[];
-      TestDefaultBinaryMessengerBinding.instance!.defaultBinaryMessenger
+      _ambiguate(TestDefaultBinaryMessengerBinding.instance)!
+          .defaultBinaryMessenger
           .setMockMethodCallHandler(SystemChannels.platform,
               (MethodCall methodCall) async {
         log.add(methodCall);
@@ -731,7 +783,8 @@ void main() {
     testWidgets("Handles the Android back button when ShellRoute can't pop",
         (WidgetTester tester) async {
       final List<MethodCall> log = <MethodCall>[];
-      TestDefaultBinaryMessengerBinding.instance!.defaultBinaryMessenger
+      _ambiguate(TestDefaultBinaryMessengerBinding.instance)!
+          .defaultBinaryMessenger
           .setMockMethodCallHandler(SystemChannels.platform,
               (MethodCall methodCall) async {
         log.add(methodCall);
@@ -791,11 +844,48 @@ void main() {
     });
   });
 
+  testWidgets('does not crash when inherited widget changes',
+      (WidgetTester tester) async {
+    final ValueNotifier<String> notifier = ValueNotifier<String>('initial');
+    final List<GoRoute> routes = <GoRoute>[
+      GoRoute(
+          path: '/',
+          pageBuilder: (BuildContext context, GoRouterState state) {
+            final String value = context
+                .dependOnInheritedWidgetOfExactType<TestInheritedNotifier>()!
+                .notifier!
+                .value;
+            return MaterialPage<void>(
+              key: state.pageKey,
+              child: Text(value),
+            );
+          }),
+    ];
+    final GoRouter router = GoRouter(
+      routes: routes,
+    );
+    await tester.pumpWidget(
+      MaterialApp.router(
+        routerConfig: router,
+        builder: (BuildContext context, Widget? child) {
+          return TestInheritedNotifier(notifier: notifier, child: child!);
+        },
+      ),
+    );
+
+    expect(find.text(notifier.value), findsOneWidget);
+
+    notifier.value = 'updated';
+    await tester.pump();
+    expect(find.text(notifier.value), findsOneWidget);
+  });
+
   testWidgets(
       'Handles the Android back button when a second Shell has a GoRoute with parentNavigator key',
       (WidgetTester tester) async {
     final List<MethodCall> log = <MethodCall>[];
-    TestDefaultBinaryMessengerBinding.instance!.defaultBinaryMessenger
+    _ambiguate(TestDefaultBinaryMessengerBinding.instance)!
+        .defaultBinaryMessenger
         .setMockMethodCallHandler(SystemChannels.platform,
             (MethodCall methodCall) async {
       log.add(methodCall);
@@ -884,7 +974,8 @@ void main() {
   group('report correct url', () {
     final List<MethodCall> log = <MethodCall>[];
     setUp(() {
-      TestDefaultBinaryMessengerBinding.instance!.defaultBinaryMessenger
+      _ambiguate(TestDefaultBinaryMessengerBinding.instance)!
+          .defaultBinaryMessenger
           .setMockMethodCallHandler(SystemChannels.navigation,
               (MethodCall methodCall) async {
         log.add(methodCall);
@@ -892,7 +983,8 @@ void main() {
       });
     });
     tearDown(() {
-      TestDefaultBinaryMessengerBinding.instance!.defaultBinaryMessenger
+      _ambiguate(TestDefaultBinaryMessengerBinding.instance)!
+          .defaultBinaryMessenger
           .setMockMethodCallHandler(SystemChannels.navigation, null);
       log.clear();
     });
@@ -1490,7 +1582,7 @@ void main() {
 
       redirected = false;
       // Directly set the url through platform message.
-      await sendPlatformUrl('/dummy');
+      await sendPlatformUrl('/dummy', tester);
 
       await tester.pumpAndSettle();
       expect(router.location, '/login');
@@ -1523,7 +1615,7 @@ void main() {
 
       expect(router.location, '/');
       // Directly set the url through platform message.
-      await sendPlatformUrl('/dummy');
+      await sendPlatformUrl('/dummy', tester);
       await tester.pumpAndSettle();
       expect(router.location, '/dummy');
     });
@@ -1626,7 +1718,7 @@ void main() {
       });
       redirected = false;
       // Directly set the url through platform message.
-      await sendPlatformUrl('/dummy');
+      await sendPlatformUrl('/dummy', tester);
 
       await tester.pumpAndSettle();
       expect(router.location, '/login');
@@ -2019,7 +2111,7 @@ void main() {
       final GoRouter router = await createRouter(routes, tester);
 
       // Directly set the url through platform message.
-      await sendPlatformUrl('/dummy/dummy2');
+      await sendPlatformUrl('/dummy/dummy2', tester);
 
       await tester.pumpAndSettle();
       expect(router.location, '/other');
@@ -2049,6 +2141,33 @@ void main() {
         initialLocation: '/dummy',
       );
       expect(router.location, '/dummy');
+    });
+
+    testWidgets('initial location with extra', (WidgetTester tester) async {
+      final List<GoRoute> routes = <GoRoute>[
+        GoRoute(
+          path: '/',
+          builder: (BuildContext context, GoRouterState state) =>
+              const HomeScreen(),
+          routes: <GoRoute>[
+            GoRoute(
+              path: 'dummy',
+              builder: (BuildContext context, GoRouterState state) {
+                return DummyScreen(key: ValueKey<Object?>(state.extra));
+              },
+            ),
+          ],
+        ),
+      ];
+
+      final GoRouter router = await createRouter(
+        routes,
+        tester,
+        initialLocation: '/dummy',
+        initialExtra: 'extra',
+      );
+      expect(router.location, '/dummy');
+      expect(find.byKey(const ValueKey<Object?>('extra')), findsOneWidget);
     });
 
     testWidgets('initial location w/ redirection', (WidgetTester tester) async {
@@ -2098,9 +2217,28 @@ void main() {
         routes,
         tester,
       );
+      // TODO(chunhtai): remove this ignore and migrate the code
+      // https://github.com/flutter/flutter/issues/124045.
+      // ignore: deprecated_member_use
       expect(router.routeInformationProvider.value.location, '/dummy');
       TestWidgetsFlutterBinding
           .instance.platformDispatcher.defaultRouteNameTestValue = '/';
+    });
+
+    test('throws assertion if initialExtra is set w/o initialLocation', () {
+      expect(
+        () => GoRouter(
+          routes: const <GoRoute>[],
+          initialExtra: 1,
+        ),
+        throwsA(
+          isA<AssertionError>().having(
+            (AssertionError e) => e.message,
+            'error message',
+            'initialLocation must be set in order to use initialExtra',
+          ),
+        ),
+      );
     });
   });
 
@@ -2391,8 +2529,8 @@ void main() {
       expect(router.location, loc);
       expect(matches.matches, hasLength(2));
       expect(find.byType(PersonScreen), findsOneWidget);
-      final ImperativeRouteMatch imperativeRouteMatch =
-          matches.matches.last as ImperativeRouteMatch;
+      final ImperativeRouteMatch<Object?> imperativeRouteMatch =
+          matches.matches.last as ImperativeRouteMatch<Object?>;
       expect(imperativeRouteMatch.matches.pathParameters['fid'], fid);
       expect(imperativeRouteMatch.matches.pathParameters['pid'], pid);
     });
@@ -2650,6 +2788,26 @@ void main() {
       expect(router.extra, extra);
     });
 
+    testWidgets('calls [push] on closest GoRouter and waits for result',
+        (WidgetTester tester) async {
+      final GoRouterPushSpy router = GoRouterPushSpy(routes: routes);
+      await tester.pumpWidget(
+        MaterialApp.router(
+          routeInformationProvider: router.routeInformationProvider,
+          routeInformationParser: router.routeInformationParser,
+          routerDelegate: router.routerDelegate,
+          title: 'GoRouter Example',
+        ),
+      );
+      final String? result = await router.push<String>(
+        location,
+        extra: extra,
+      );
+      expect(result, extra);
+      expect(router.myLocation, location);
+      expect(router.extra, extra);
+    });
+
     testWidgets('calls [pushNamed] on closest GoRouter',
         (WidgetTester tester) async {
       final GoRouterPushNamedSpy router = GoRouterPushNamedSpy(routes: routes);
@@ -2669,6 +2827,30 @@ void main() {
       expect(router.params, params);
       expect(router.queryParams, queryParams);
       expect(router.extra, extra);
+    });
+
+    testWidgets('calls [pushNamed] on closest GoRouter and waits for result',
+        (WidgetTester tester) async {
+      final GoRouterPushNamedSpy router = GoRouterPushNamedSpy(routes: routes);
+      await tester.pumpWidget(
+        MaterialApp.router(
+          routeInformationProvider: router.routeInformationProvider,
+          routeInformationParser: router.routeInformationParser,
+          routerDelegate: router.routerDelegate,
+          title: 'GoRouter Example',
+        ),
+      );
+      final String? result = await router.pushNamed<String>(
+        name,
+        params: params,
+        queryParams: queryParams,
+        extra: extra,
+      );
+      expect(result, extra);
+      expect(router.extra, extra);
+      expect(router.name, name);
+      expect(router.params, params);
+      expect(router.queryParams, queryParams);
     });
 
     testWidgets('calls [pop] on closest GoRouter', (WidgetTester tester) async {
@@ -3218,6 +3400,132 @@ void main() {
         final bool? result = await resultFuture;
         expect(result, isTrue);
       });
+
+      testWidgets('Triggers a Hero inside a ShellRoute',
+          (WidgetTester tester) async {
+        final UniqueKey heroKey = UniqueKey();
+        const String kHeroTag = 'hero';
+
+        final List<RouteBase> routes = <RouteBase>[
+          ShellRoute(
+            builder: (BuildContext context, GoRouterState state, Widget child) {
+              return child;
+            },
+            routes: <GoRoute>[
+              GoRoute(
+                  path: '/a',
+                  builder: (BuildContext context, _) {
+                    return Hero(
+                      tag: kHeroTag,
+                      child: Container(),
+                      flightShuttleBuilder: (_, __, ___, ____, _____) {
+                        return Container(key: heroKey);
+                      },
+                    );
+                  }),
+              GoRoute(
+                  path: '/b',
+                  builder: (BuildContext context, _) {
+                    return Hero(
+                      tag: kHeroTag,
+                      child: Container(),
+                    );
+                  }),
+            ],
+          )
+        ];
+        final GoRouter router =
+            await createRouter(routes, tester, initialLocation: '/a');
+
+        // check that flightShuttleBuilder widget is not yet present
+        expect(find.byKey(heroKey), findsNothing);
+
+        // start navigation
+        router.go('/b');
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 10));
+        // check that flightShuttleBuilder widget is visible
+        expect(find.byKey(heroKey), isOnstage);
+        // // Waits for the animation finishes.
+        await tester.pumpAndSettle();
+        expect(find.byKey(heroKey), findsNothing);
+      });
     });
   });
+
+  group('of', () {
+    testWidgets(
+      'It should return the go router instance of the widget tree',
+      (WidgetTester tester) async {
+        const Key key = Key('key');
+        final List<RouteBase> routes = <RouteBase>[
+          GoRoute(
+            path: '/',
+            builder: (_, __) => const SizedBox(key: key),
+          ),
+        ];
+
+        final GoRouter router = await createRouter(routes, tester);
+        final Element context = tester.element(find.byKey(key));
+        final GoRouter foundRouter = GoRouter.of(context);
+        expect(foundRouter, router);
+      },
+    );
+
+    testWidgets(
+      'It should throw if there is no go router in the widget tree',
+      (WidgetTester tester) async {
+        const Key key = Key('key');
+        await tester.pumpWidget(const SizedBox(key: key));
+
+        final Element context = tester.element(find.byKey(key));
+        expect(() => GoRouter.of(context), throwsA(anything));
+      },
+    );
+  });
+
+  group('maybeOf', () {
+    testWidgets(
+      'It should return the go router instance of the widget tree',
+      (WidgetTester tester) async {
+        const Key key = Key('key');
+        final List<RouteBase> routes = <RouteBase>[
+          GoRoute(
+            path: '/',
+            builder: (_, __) => const SizedBox(key: key),
+          ),
+        ];
+
+        final GoRouter router = await createRouter(routes, tester);
+        final Element context = tester.element(find.byKey(key));
+        final GoRouter? foundRouter = GoRouter.maybeOf(context);
+        expect(foundRouter, router);
+      },
+    );
+
+    testWidgets(
+      'It should return null if there is no go router in the widget tree',
+      (WidgetTester tester) async {
+        const Key key = Key('key');
+        await tester.pumpWidget(const SizedBox(key: key));
+
+        final Element context = tester.element(find.byKey(key));
+        expect(GoRouter.maybeOf(context), isNull);
+      },
+    );
+  });
 }
+
+class TestInheritedNotifier extends InheritedNotifier<ValueNotifier<String>> {
+  const TestInheritedNotifier({
+    super.key,
+    required super.notifier,
+    required super.child,
+  });
+}
+
+/// This allows a value of type T or T? to be treated as a value of type T?.
+///
+/// We use this so that APIs that have become non-nullable can still be used
+/// with `!` and `?` on the stable branch.
+T? _ambiguate<T>(T? value) => value;
